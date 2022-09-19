@@ -1,0 +1,44 @@
+name: Update Contributions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Contributor
+        uses: actions/checkout@v2.4.2
+        with:
+          path: "./contributor"
+          fetch-depth: 0
+      - name: Execute Contributor
+        run: |
+          cat ./contributor/sources.txt | while read line; do
+              source=($line)
+              git clone ${source[0]} -b ${source[1]} ${source[2]}
+              cd ${source[2]}
+              auth=$(cat ../contributor/author.txt)
+              git --no-pager log --author="${auth}" --format="C: ${source[2]} %H %at" > ../commits.txt
+              cd ../contributor
+              git pull
+              git --no-pager log --format="%s" > ../igncommits.txt
+              cd ../
+              cat igncommits.txt | while read line; do
+                grep -v "${line}" commits.txt > ncommits.txt || true
+                mv ncommits.txt commits.txt
+                rm -rf ncommits.txt
+              done
+              bash ./contributor/credentials.sh
+              cd ./contributor
+              cat ../commits.txt | while read line; do
+                arr=($line)
+                git commit --date="${arr[3]}" -m "${line}" --allow-empty &> /dev/null
+              done
+              cd ../
+              rm -rf commits.txt
+              rm -rf igncommits.txt
+              echo -e "Committed commits by ${auth} from ${source[1]} in ${source[0]} to Contributor with the message C: ${source[2]} <Hash> <Timestamp>"
+          done
+          cd ./contributor
+          git push

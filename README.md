@@ -1,9 +1,7 @@
 # contributor
 ### Turn your commits into contributions!
 
-Contributor is a little utility to add commits to your GitHub contribution table to make up for GitHub's shortcomings with assuming what's a contribution or not.
-
-For example, this may be useful when you've committed 700 times to your project but GitHub doesn't consider them contributions because the repository is a fork. Even though you have no intention to merge your fork into the parent repository and it's only a fork in the first place because its easier to update your dependencies that way, GitHub still doesn't have an option to set your fork's main branch to be reconigized as worthy of contributions. Or maybe you're working on that same project and your software has multiple stable, main branches but only one of them can be the official main branch and the one you mainly contribute to just so happens to not be that branch. No that totally hasen't happened to me ever..totally...
+Contributor is a little utility to aggregate commits from other sources and add them to your GitHub contribution timeline.
 
 ## Installation
 1. Create a repository out of this template.

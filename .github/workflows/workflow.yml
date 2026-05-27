@@ -12,33 +12,111 @@ jobs:
         with:
           path: "./contributor"
           fetch-depth: 0
+          persist-credentials: true
       - name: Execute Contributor
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: |
+          # Configure GitHub CLI token auth for Git HTTPS operations.
+          export GH_TOKEN="${ACCESS_TOKEN}"
+          gh auth setup-git
+          # Read each source configuration line from sources.txt.
           cat ./contributor/sources.txt | while read line; do
-              source=($line)
+              # Split the line into primary source (left side) and optional dedup sources (right side).
+              IFS='|' read -r primary dedup <<< "$line"
+              # Trim whitespace from the primary source section.
+              primary=$(echo "$primary" | xargs)
+              # Trim whitespace from the dedup sources section.
+              dedup=$(echo "$dedup" | xargs)
+              # Convert the primary source section into an array: repo URL, branch, and repo ID.
+              source=($primary)
+              # Clone the primary source repository and checkout the configured branch.
               git clone ${source[0]} -b ${source[1]} ${source[2]}
+              # Enter the cloned primary source repository.
               cd ${source[2]}
+              # Load the author filter string from author.txt.
               auth=$(cat ../contributor/author.txt)
+              # Collect commits by that author and format each as: C: <repo-id> <hash> <timestamp>.
               git --no-pager log --author="${auth}" --format="C: ${source[2]} %H %at" > ../commits.txt
+              # Return to the contributor repository.
               cd ../contributor
+              # Sync contributor repository with remote before deduping and adding new commits.
               git pull
+              # Collect existing contributor commit subjects so already-imported commits can be skipped.
               git --no-pager log --format="%s" > ../igncommits.txt
+              # Move to the workspace root where temp files are managed.
               cd ../
+              # If optional dedup sources were provided, remove commits that exist in those sources.
+              if [ -n "$dedup" ]; then
+                # Create or truncate the temporary hash file used for dedup filtering.
+                > dedup_hashes.txt
+                # Split dedup sources by comma into individual "<repo> <branch>" entries.
+                IFS=',' read -ra dedup_entries <<< "$dedup"
+                # Track an index to keep temporary clone directory names unique.
+                dedup_dir_index=0
+                # Iterate through each dedup source entry.
+                for entry in "${dedup_entries[@]}"; do
+                  # Trim whitespace from this dedup source entry.
+                  entry=$(echo "$entry" | xargs)
+                  # Skip empty entries.
+                  if [ -z "$entry" ]; then
+                    continue
+                  fi
+                  # Split dedup entry into array values: repo URL and branch.
+                  dedup_source=($entry)
+                  # Skip invalid entries that do not provide both repo URL and branch.
+                  if [ ${#dedup_source[@]} -lt 2 ]; then
+                    continue
+                  fi
+                  # Build a unique temporary directory name for the dedup clone.
+                  dedup_dir="dedup-${source[2]}-${dedup_dir_index}"
+                  # Clone the dedup source repository and checkout its configured branch.
+                  git clone ${dedup_source[0]} -b ${dedup_source[1]} ${dedup_dir}
+                  # Enter the dedup source clone.
+                  cd ${dedup_dir}
+                  # Append all commit hashes by the target author from this dedup source.
+                  git --no-pager log --author="${auth}" --format="%H" >> ../dedup_hashes.txt
+                  # Return to workspace root.
+                  cd ../
+                  # Remove the temporary dedup clone directory.
+                  rm -rf ${dedup_dir}
+                  # Increment the temporary directory index.
+                  dedup_dir_index=$((dedup_dir_index + 1))
+                done
+                # If dedup hashes were found, filter matching commits from the primary commit list.
+                if [ -s dedup_hashes.txt ]; then
+                  grep -v -F -f dedup_hashes.txt commits.txt > ncommits.txt || true
+                  mv ncommits.txt commits.txt
+                fi
+                # Delete the temporary dedup hash file.
+                rm -rf dedup_hashes.txt
+              fi
+              # Remove commits already represented in contributor history by matching commit subjects.
               cat igncommits.txt | while read line; do
                 grep -v "${line}" commits.txt > ncommits.txt || true
                 mv ncommits.txt commits.txt
                 rm -rf ncommits.txt
               done
+              # Configure Git credentials for creating commits in this repository.
               bash ./contributor/credentials.sh
+              # Enter the contributor repository to create converted commits.
               cd ./contributor
+              # Recreate each remaining source commit as an empty commit with matching timestamp and message.
               cat ../commits.txt | while read line; do
                 arr=($line)
                 git commit --date="${arr[3]}" -m "${line}" --allow-empty &> /dev/null
               done
+              # Return to workspace root.
               cd ../
+              # Clean up temporary commit lists for this source.
               rm -rf commits.txt
               rm -rf igncommits.txt
+              # Print a status message for this processed source.
               echo -e "Committed commits by ${auth} from ${source[1]} in ${source[0]} to Contributor with the message C: ${source[2]} <Hash> <Timestamp>"
           done
+          # Clear GH_TOKEN before push so checkout-provided credentials remain authoritative.
+          unset GH_TOKEN
+          # Re-enter contributor repository after processing all sources.
           cd ./contributor
+          # Push newly created commits to the repository remote.
           git push

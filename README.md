@@ -7,17 +7,20 @@ For example, this may be useful when you've committed 700 times to your project 
 
 ## Installation
 1. Create a repository out of this template.
-2. Edit `sources.txt` to add your sources (repositories with the commits you want to add). On each line, you should add the following information in the format below, seperated by spaces. The repo ID is the ID Contributor will refer to it by. Using IDs, you can change the link and branch of a source without Contributor recommitting past commits.
+2. Edit `sources.txt` to add your sources (repositories with the commits you want to add). On each line, you should add the following information in the format below, separated by spaces. The repo ID is the ID Contributor will refer to it by. Using IDs, you can change the link and branch of a source without Contributor recommitting past commits. You can optionally append deduplication sources after a pipe (`|`) to ignore commits that appear in other repositories/branches.
 ```
 <Repo Link> <Branch> <Repo ID>
+<Repo Link> <Branch> <Repo ID> | <Repo 2 Link> <Branch 2>, <Repo 3 Link> <Branch 3>, ..., <Repo n Link> <Branch n>
 ```
 4. Edit `author.txt` and, on the first line, add the author of the commits you wish to convert. This must be the exact string you used in the author of the commits, as Contributor uses this to find your commits.
 5. Edit `credentials.sh`, and follow the instructions to add your Git credentials (don't worry, it's only public information, nothing sensitive!)
+6. Add a repository secret named `ACCESS_TOKEN` with a PAT if you need to access private repositories. The token should have the `repo` permission.
 
 ## Usage
 Go to Actions > Update Contributions and dispatch the workflow. The workflow is ran on dispatch, so make sure to do this whenever you want to update your contributions.
-> Note:\
+
+> [!NOTE]
 > Contributor sets the author dates of your converted commits to the exact same author dates as the real ones, so you don't have to worry about timing. You can dispatch the workflow as often or as rarely as you want&mdash;your contributions will always show up on the correct dates.
 
 ## How it Works
-Every time you dispatch the workflow, Contributor clones your sources and gets every commit in each repository. It then removes commits you didn't create, according to their authors. Then, it formats the subjects of all of your commits into Contributor's specific format. Since all commits Contributor makes are formatted in the same way, Contributor can search for and remove commits it's already committed. Finally, Contributor sets your Git credentials, commits the remaining commits to itself, and pushes itself upstream.
+Every time you dispatch the workflow, Contributor clones your sources and, for each source, collects every commit and drops the ones which appear in the source's deduplication sources. Then, it removes commits you didn't create (according to `author.txt`) and generates commit messages in Contributor's specific format. Since all commits Contributor makes are formatted in the same way, Contributor can prevent double-counting commits it's already committed. Finally, Contributor sets your Git credentials, commits the remaining commits to itself, and pushes them upstream.

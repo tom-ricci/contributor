@@ -19,16 +19,14 @@ jobs:
           bun-version: latest
       - name: Execute Contributor
         env:
-          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          # All repository secrets, so entries in manifest.json can reference
+          # their token by name. Adding a token never requires editing this workflow.
+          SECRETS: ${{ toJSON(secrets) }}
         run: |
-          # Configure GitHub CLI token auth for Git HTTPS operations (clones).
-          export GH_TOKEN="${ACCESS_TOKEN}"
-          gh auth setup-git
-          # Run Contributor. Cloning, deduplication, and commit creation all
-          # happen here; it operates on ./contributor and clones sources beside it.
+          # Run Contributor. Source clones authenticate with each entry's own
+          # token; contribution graphs are fetched over the GraphQL API. It
+          # operates on ./contributor and clones sources beside it.
           bun ./contributor/src/index.ts
-          # Clear GH_TOKEN before push so checkout-provided credentials remain authoritative.
-          unset GH_TOKEN
-          # Push the newly created commits to the repository remote.
+          # Push the newly created commits using the checkout-provided credentials.
           cd ./contributor
           git push

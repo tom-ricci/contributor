@@ -1,7 +1,2 @@
 node_modules/
 *.log
-
-# DELETE LATER
-contrib.json
-contrib-methodology.md
-tok.txt
